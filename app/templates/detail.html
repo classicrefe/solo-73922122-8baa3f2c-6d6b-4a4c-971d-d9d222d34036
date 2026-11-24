@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}更正 · {{ wb.original_name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>{{ wb.original_name }} <span class="muted">（#{{ wb.id }}，工作表：{{ wb.sheet_name }}，共 {{ wb.row_count }} 行）</span></h2>
+  <p class="muted" style="margin-bottom:8px">
+    有效站码优先级：<b>样本更正 &gt; 整批改站 &gt; 原始站码</b>；
+    撤销样本更正后回退到现行批站码。下载时同批连续同站重新合并站码，跨批即使同站也分开。
+  </p>
+  <a class="btn green" href="{{ url_for('download', workbook_id=wb.id) }}">下载更正工作簿</a>
+  <a class="btn gray" href="{{ url_for('index') }}">返回列表</a>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2>整批改站</h2>
+    <form method="post" action="{{ url_for('batch_correct', workbook_id=wb.id) }}">
+      <p>
+        <label>批号</label><br>
+        <select name="batch_no" required style="width:100%;padding:6px;margin-top:4px">
+          {% for batch_no, recs in groups.items() %}
+          <option value="{{ batch_no }}">{{ batch_no }}（{{ recs|length }} 行，原始站码 {{ recs[0].original_station }}）</option>
+          {% endfor %}
+        </select>
+      </p>
+      <p><label>新采样站码</label><br>
+        <input type="text" name="new_station" required style="width:100%;margin-top:4px"></p>
+      <p><label>复核员（可选）</label><br>
+        <input type="text" name="operator" style="width:100%;margin-top:4px"></p>
+      <button type="submit">登记整批改站</button>
+    </form>
+    <h2 style="margin-top:22px">整批更正记录</h2>
+    {% if batch_corrections %}
+    <table>
+      <thead><tr><th>#</th><th>批号</th><th>原站码</th><th>新站码</th><th>复核员</th><th>时间</th></tr></thead>
+      <tbody>
+        {% for c in batch_corrections %}
+        <tr>
+          <td>{{ c.id }}</td><td>{{ c.batch_no }}</td>
+          <td class="strike">{{ c.old_station }}</td><td><b>{{ c.new_station }}</b></td>
+          <td>{{ c.operator or '—' }}</td><td class="nowrap">{{ c.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">暂无整批更正。</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>按样本更正 / 撤销</h2>
+    <form method="post" action="{{ url_for('sample_correct', workbook_id=wb.id) }}">
+      <p><label>唯一样本号</label><br>
+        <input type="text" name="sample_no" required list="sample-list" style="width:100%;margin-top:4px">
+        <datalist id="sample-list">
+          {% for recs in groups.values() %}{% for r in recs %}
+          <option value="{{ r.sample_no }}">
+          {% endfor %}{% endfor %}
+        </datalist>
+      </p>
+      <p><label>新采样站码</label><br>
+        <input type="text" name="new_station" required style="width:100%;margin-top:4px"></p>
+      <p><label>复核员（可选）</label><br>
+        <input type="text" name="operator" style="width:100%;margin-top:4px"></p>
+      <button type="submit" class="green">登记样本更正</button>
+    </form>
+    <form method="post" action="{{ url_for('sample_revoke', workbook_id=wb.id) }}"
+          style="margin-top:14px;border-top:1px dashed #ccc;padding-top:14px">
+      <p><label>撤销样本的单独更正（恢复现行批站码）</label><br>
+        <input type="text" name="sample_no" required list="sample-list" style="width:100%;margin-top:4px"></p>
+      <p><label>复核员（可选）</label><br>
+        <input type="text" name="operator" style="width:100%;margin-top:4px"></p>
+      <button type="submit" class="red">撤销样本更正</button>
+    </form>
+    <h2 style="margin-top:22px">样本更正记录</h2>
+    {% if sample_corrections %}
+    <table>
+      <thead><tr><th>#</th><th>样本号</th><th>动作</th><th>原站码</th><th>新站码</th><th>时间</th></tr></thead>
+      <tbody>
+        {% for c in sample_corrections %}
+        <tr>
+          <td>{{ c.id }}</td><td>{{ c.sample_no }}</td>
+          <td>{{ c.action|action_label }}</td>
+          <td class="strike">{{ c.old_station }}</td>
+          <td>{% if c.action == 'correct' %}<b>{{ c.new_station }}</b>{% else %}—（回退批站码）{% endif %}</td>
+          <td class="nowrap">{{ c.created_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">暂无样本更正。</p>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>逐行复核视图（{{ wb.row_count }} 行）</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>原表行号</th><th>批号</th><th>唯一样本号</th>
+        <th>原始站码</th><th>现行有效站码</th><th>来源</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for batch_no, recs in groups.items() %}
+      <tr class="batch-head"><td colspan="6">批号：{{ batch_no }}（{{ recs|length }} 行）</td></tr>
+      {% for r in recs %}
+      <tr>
+        <td>{{ r.row_index }}</td>
+        <td>{{ r.batch }}</td>
+        <td>{{ r.sample_no }}</td>
+        <td>{{ r.original_station }}</td>
+        <td><b>{{ r.effective_station }}</b></td>
+        <td>
+          {% if r.source == 'sample' %}<span class="tag tag-sample">{{ r.source|station_source }}</span>
+          {% elif r.source == 'batch' %}<span class="tag tag-batch">{{ r.source|station_source }}</span>
+          {% elif 'revoked' in r.source %}<span class="tag tag-revoked">{{ r.source|station_source }}</span>
+          {% else %}<span class="tag tag-original">{{ r.source|station_source }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

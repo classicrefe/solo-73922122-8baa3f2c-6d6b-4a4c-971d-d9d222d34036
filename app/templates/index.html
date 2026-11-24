@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>上传送检表（单表 XLSX）</h2>
+  <form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+        class="upload-row">
+    <input type="file" name="file" accept=".xlsx" required>
+    <button type="submit">上传并展开站码</button>
+  </form>
+  <p class="muted" style="margin-bottom:0;margin-top:10px">
+    要求：表头含“采样站码 / 批号 / 唯一样本号”；批号与样本号逐行填写；
+    同批行连续且共用一个纵向合并的站码格。样本号重复将被拒收并指出所在行。
+  </p>
+</div>
+
+<div class="card">
+  <h2>已登记工作簿（{{ workbooks|length }}）</h2>
+  {% if workbooks %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>原文件名</th><th>工作表</th>
+        <th>数据行数</th><th>上传时间</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for wb in workbooks %}
+      <tr>
+        <td>{{ wb.id }}</td>
+        <td class="file-name">{{ wb.original_name }}</td>
+        <td>{{ wb.sheet_name }}</td>
+        <td>{{ wb.row_count }}</td>
+        <td class="nowrap">{{ wb.uploaded_at }}</td>
+        <td class="nowrap">
+          <a class="btn" href="{{ url_for('workbook_detail', workbook_id=wb.id) }}">打开更正</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">暂无工作簿，请先上传。</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    image: water-quality-correction:latest
+    container_name: water-quality-correction
+    ports:
+      - "5000:5000"
+    environment:
+      DATA_DIR: /data
+      SECRET_KEY: please-change-in-production
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
